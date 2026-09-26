@@ -40,19 +40,13 @@ def save_history(history):
 
 def show_history(history):
     if not history:
-        print("\n📭 Histórico vazio.\n")
+        print("\nHistórico vazio.\n")
         return
 
     print("\n===== HISTÓRICO =====")
 
     for index, message in enumerate(history, start=1):
-
-        role = (
-            "Você"
-            if message["role"] == "user"
-            else "JARVIS"
-        )
-
+        role = "Você" if message["role"] == "user" else "JARVIS"
         content = message["content"].replace("\n", " ")
 
         print(f"{index}. {role}: {content}")
@@ -61,7 +55,6 @@ def show_history(history):
 
 
 def forget_message(history, number):
-
     user_positions = [
         index
         for index, message in enumerate(history)
@@ -69,34 +62,32 @@ def forget_message(history, number):
     ]
 
     if number < 1 or number > len(user_positions):
-
-        print("❌ Número de mensagem inválido.")
-
+        print("Número de mensagem inválido.")
         return history
 
     position = user_positions[number - 1]
 
     del history[position]
 
-    if position < len(history):
-
-        if history[position]["role"] == "assistant":
-            del history[position]
+    if (
+        position < len(history)
+        and history[position]["role"] == "assistant"
+    ):
+        del history[position]
 
     save_history(history)
 
-    print(f"🗑️ Mensagem {number} esquecida.")
+    print(f"Mensagem {number} esquecida.")
 
     return history
 
 
 def print_help():
-
     print("""
 ===== COMANDOS =====
 /ajuda              Mostra esta ajuda
 /historico          Mostra o histórico
-/esquecer <n>       Esquece uma mensagem
+/esquecer <n>       Esquece a mensagem do usuário de número n
 /limpar             Apaga todo o histórico
 /modelo             Mostra o modelo atual
 /modelo <nome>      Troca o modelo
@@ -107,21 +98,12 @@ def print_help():
 
 
 def main():
-
     api_key = os.getenv("OPENROUTER_API_KEY")
 
     if not api_key or api_key == "CHAVE_API_AQUI":
-
-        print("❌ API Key não configurada.")
-
-        print(
-            "Crie um arquivo .env e coloque:"
-        )
-
-        print(
-            "OPENROUTER_API_KEY=CHAVE_API_AQUI"
-        )
-
+        print("API Key não configurada.")
+        print("Crie um arquivo .env e coloque:")
+        print("OPENROUTER_API_KEY=CHAVE_API_AQUI")
         return
 
     client = OpenAI(
@@ -136,21 +118,17 @@ def main():
     if model not in AVAILABLE_MODELS.values():
         model = AVAILABLE_MODELS["free"]
 
-    print("🧪 JARVIS TESTE iniciado!")
-    print(f"🧠 Modelo: {model}")
+    print("JARVIS iniciado.")
+    print(f"Modelo: {model}")
     print("Digite /ajuda para ver os comandos.")
     print("Digite /sair para sair.\n")
 
     while True:
-
         try:
-
             user_input = input("Você: ").strip()
 
         except (KeyboardInterrupt, EOFError):
-
-            print("\n👋 JARVIS encerrado.")
-
+            print("\nJARVIS encerrado.")
             break
 
         if not user_input:
@@ -159,109 +137,61 @@ def main():
         command = user_input.lower()
 
         if command == "/sair":
-
-            print("👋 JARVIS encerrado.")
-
+            print("JARVIS encerrado.")
             break
 
         if command == "/ajuda":
-
             print_help()
-
             continue
 
         if command == "/historico":
-
             show_history(history)
-
             continue
 
         if command == "/limpar":
-
             history.clear()
-
             save_history(history)
-
-            print("🧹 Histórico apagado.")
-
+            print("Histórico apagado.")
             continue
 
         if command == "/modelos":
-
             print("\n===== MODELOS =====")
 
             for name, model_id in AVAILABLE_MODELS.items():
-
-                marker = (
-                    " ← atual"
-                    if model_id == model
-                    else ""
-                )
-
-                print(
-                    f"{name}: {model_id}{marker}"
-                )
+                marker = " <- atual" if model_id == model else ""
+                print(f"{name}: {model_id}{marker}")
 
             print("===================\n")
-
             continue
 
         if command == "/modelo":
-
-            print(
-                f"🧠 Modelo atual: {model}"
-            )
-
+            print(f"Modelo atual: {model}")
             continue
 
         if command.startswith("/modelo "):
-
-            chosen = (
-                user_input
-                .split(maxsplit=1)[1]
-                .strip()
-                .lower()
-            )
+            chosen = user_input.split(maxsplit=1)[1].strip().lower()
 
             if chosen in AVAILABLE_MODELS:
-
                 model = AVAILABLE_MODELS[chosen]
-
-                print(
-                    f"🧠 Modelo alterado para: {model}"
-                )
+                print(f"Modelo alterado para: {model}")
 
             elif chosen in AVAILABLE_MODELS.values():
-
                 model = chosen
-
-                print(
-                    f"🧠 Modelo alterado para: {model}"
-                )
+                print(f"Modelo alterado para: {model}")
 
             else:
-
-                print(
-                    "❌ Modelo inválido. Use /modelos."
-                )
+                print("Modelo inválido. Use /modelos.")
 
             continue
 
         if command.startswith("/esquecer"):
-
             parts = user_input.split()
 
             if len(parts) != 2 or not parts[1].isdigit():
-
                 print("Use: /esquecer <n>")
-
                 continue
 
-            history = forget_message(
-                history,
-                int(parts[1])
-            )
-
+            history = forget_message(history, int(parts[1]))
             continue
 
         history.append({
@@ -270,28 +200,16 @@ def main():
         })
 
         try:
-
             response = client.chat.completions.create(
                 model=model,
                 messages=history
             )
 
-            answer = (
-                response
-                .choices[0]
-                .message
-                .content
-                .strip()
-            )
+            answer = response.choices[0].message.content.strip()
 
         except Exception as error:
-
             history.pop()
-
-            print(
-                f"\n❌ Erro ao consultar a API: {error}\n"
-            )
-
+            print(f"\nErro ao consultar a API: {error}\n")
             continue
 
         print(f"JARVIS: {answer}\n")
