@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -9,9 +10,10 @@ load_dotenv()
 
 HISTORY_FILE = Path("history.json")
 
-DEFAULT_MODEL = os.getenv(
-    "DEEPSEEK_MODEL",
-    "deepseek-flash"
+DEFAULT_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+
+MAX_TOKENS = int(
+    os.getenv("DEEPSEEK_MAX_TOKENS", "4096")
 )
 
 AVAILABLE_MODELS = {
@@ -24,28 +26,17 @@ def load_history():
         return []
 
     try:
-
-        with HISTORY_FILE.open(
-            "r",
-            encoding="utf-8"
-        ) as file:
-
+        with HISTORY_FILE.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
         return data if isinstance(data, list) else []
 
     except (json.JSONDecodeError, OSError):
-
         return []
 
 
 def save_history(history):
-
-    with HISTORY_FILE.open(
-        "w",
-        encoding="utf-8"
-    ) as file:
-
+    with HISTORY_FILE.open("w", encoding="utf-8") as file:
         json.dump(
             history,
             file,
@@ -55,120 +46,124 @@ def save_history(history):
 
 
 def show_history(history):
-
     if not history:
-
         print("\n📭 Histórico vazio.\n")
-
         return
 
     print("\n===== HISTÓRICO =====")
 
-    for index, message in enumerate(
-        history,
-        start=1
-    ):
+    user_number = 0
 
-        role = (
-            "Você"
-            if message["role"] == "user"
-            else "JARVIS"
-        )
+    for message in history:
+        role = message.get("role")
+        content = message.get("content", "").replace("\n", " ")
 
-        content = (
-            message["content"]
-            .replace("\n", " ")
-        )
+        if role == "user":
+            user_number += 1
+            print(f"{user_number}. Você: {content}")
 
-        print(
-            f"{index}. {role}: {content}"
-        )
+        elif role == "assistant":
+            print(f"   JARVIS: {content}")
 
     print("=====================\n")
 
 
 def forget_message(history, number):
-
     user_positions = [
         index
         for index, message in enumerate(history)
-        if message["role"] == "user"
+        if message.get("role") == "user"
     ]
 
-    if (
-        number < 1
-        or number > len(user_positions)
-    ):
-
-        print(
-            "❌ Número de mensagem inválido."
-        )
-
+    if number < 1 or number > len(user_positions):
+        print("❌ Número de mensagem inválido.")
         return history
 
     position = user_positions[number - 1]
 
     del history[position]
 
-    if position < len(history):
-
-        if history[position]["role"] == "assistant":
-
-            del history[position]
+    if (
+        position < len(history)
+        and history[position].get("role") == "assistant"
+    ):
+        del history[position]
 
     save_history(history)
 
-    print(
-        f"🗑️ Mensagem {number} esquecida."
-    )
+    print(f"🗑️ Mensagem {number} esquecida.")
 
     return history
 
 
 def print_help():
-
     print("""
 ===== COMANDOS =====
-/ajuda              Mostra esta ajuda
-/historico          Mostra o histórico
-/esquecer <n>       Esquece uma mensagem
-/limpar             Apaga todo o histórico
-/modelo             Mostra o modelo atual
-/modelo <nome>      Troca o modelo
-/modelos            Mostra os modelos disponíveis
-/sair               Encerra o JARVIS
+
+/ajuda
+Mostra esta ajuda.
+
+/historico
+Mostra o histórico da conversa.
+
+/esquecer <n>
+Esquece uma mensagem específica.
+
+/limpar
+Apaga todo o histórico.
+
+/modelo
+Mostra o modelo atual.
+
+/modelo <nome>
+Troca o modelo.
+
+/modelos
+Mostra os modelos disponíveis.
+
+/sair
+Encerra o JARVIS.
+
 ====================
 """)
 
 
+def print_models(current_model):
+    print("\n===== MODELOS =====")
+
+    for name, model_id in AVAILABLE_MODELS.items():
+        marker = " ← atual" if model_id == current_model else ""
+        print(f"{name}: {model_id}{marker}")
+
+    print("===================\n")
+
+
+def clean_answer(answer):
+    if not answer:
+        return ""
+
+    # Remove Markdown de negrito.
+    answer = answer.replace("**", "")
+
+    return answer.strip()
+
+
 def main():
+    api_key = os.getenv("DEEPSEEK_API_KEY")
 
-    api_key = os.getenv(
-        "DEEPSEEK_API_KEY"
-    )
-
-    if (
-        not api_key
-        or api_key == "CHAVE_API_AQUI"
-    ):
-
-        print(
-            "❌ API Key não configurada."
-        )
-
-        print(
-            "Crie um arquivo .env e coloque:"
-        )
-
-        print(
-            "DEEPSEEK_API_KEY=CHAVE_API_AQUI"
-        )
-
+    if not api_key or api_key == "SUA_CHAVE_AQUI":
+        print("❌ API Key do DeepSeek não configurada.")
+        print()
+        print("Abra o arquivo .env e coloque:")
+        print("DEEPSEEK_API_KEY=SUA_CHAVE_AQUI")
+        print()
         return
 
     client = OpenAI(
         api_key=api_key,
-        base_url="https://api.deepseek.com"
+        base_url="https://api.deepseek.com",
+        timeout=60.0,
+        max_retries=1
     )
 
     history = load_history()
@@ -176,28 +171,23 @@ def main():
     model = DEFAULT_MODEL
 
     if model not in AVAILABLE_MODELS.values():
-
         model = AVAILABLE_MODELS["flash"]
 
-    print("🔵 JARVIS DeepSeek iniciado!")
+    print("🤖 JARVIS iniciado!")
     print(f"🧠 Modelo: {model}")
+    print("🌐 API: DeepSeek")
+    print("⚡ Modo rápido: thinking desativado + streaming")
+    print()
     print("Digite /ajuda para ver os comandos.")
-    print("Digite /sair para sair.\n")
+    print("Digite /sair para sair.")
+    print()
 
     while True:
-
         try:
-
-            user_input = input(
-                "Você: "
-            ).strip()
+            user_input = input("Você: ").strip()
 
         except (KeyboardInterrupt, EOFError):
-
-            print(
-                "\n👋 JARVIS encerrado."
-            )
-
+            print("\n👋 JARVIS encerrado.")
             break
 
         if not user_input:
@@ -205,119 +195,85 @@ def main():
 
         command = user_input.lower()
 
+        # ==============================
+        # SAIR
+        # ==============================
+
         if command == "/sair":
-
-            print(
-                "👋 JARVIS encerrado."
-            )
-
+            print("👋 JARVIS encerrado.")
             break
 
+        # ==============================
+        # AJUDA
+        # ==============================
+
         if command == "/ajuda":
-
             print_help()
-
             continue
+
+        # ==============================
+        # HISTÓRICO
+        # ==============================
 
         if command == "/historico":
-
             show_history(history)
-
             continue
+
+        # ==============================
+        # LIMPAR
+        # ==============================
 
         if command == "/limpar":
-
             history.clear()
-
             save_history(history)
-
-            print(
-                "🧹 Histórico apagado."
-            )
-
+            print("🧹 Histórico apagado.")
             continue
+
+        # ==============================
+        # MODELOS
+        # ==============================
 
         if command == "/modelos":
-
-            print(
-                "\n===== MODELOS ====="
-            )
-
-            for name, model_id in (
-                AVAILABLE_MODELS.items()
-            ):
-
-                marker = (
-                    " ← atual"
-                    if model_id == model
-                    else ""
-                )
-
-                print(
-                    f"{name}: {model_id}{marker}"
-                )
-
-            print(
-                "===================\n"
-            )
-
+            print_models(model)
             continue
+
+        # ==============================
+        # MODELO ATUAL
+        # ==============================
 
         if command == "/modelo":
-
-            print(
-                f"🧠 Modelo atual: {model}"
-            )
-
+            print(f"🧠 Modelo atual: {model}")
             continue
+
+        # ==============================
+        # TROCAR MODELO
+        # ==============================
 
         if command.startswith("/modelo "):
-
-            chosen = (
-                user_input
-                .split(maxsplit=1)[1]
-                .strip()
-                .lower()
-            )
+            chosen = user_input.split(maxsplit=1)[1].strip().lower()
 
             if chosen in AVAILABLE_MODELS:
-
                 model = AVAILABLE_MODELS[chosen]
-
-                print(
-                    f"🧠 Modelo alterado para: {model}"
-                )
+                print(f"🧠 Modelo alterado para: {model}")
 
             elif chosen in AVAILABLE_MODELS.values():
-
                 model = chosen
-
-                print(
-                    f"🧠 Modelo alterado para: {model}"
-                )
+                print(f"🧠 Modelo alterado para: {model}")
 
             else:
-
-                print(
-                    "❌ Modelo inválido. "
-                    "Use /modelos."
-                )
+                print("❌ Modelo inválido. Use /modelos.")
 
             continue
 
-        if command.startswith("/esquecer"):
+        # ==============================
+        # ESQUECER
+        # ==============================
 
+        if command.startswith("/esquecer"):
             parts = user_input.split()
 
-            if (
-                len(parts) != 2
-                or not parts[1].isdigit()
-            ):
-
-                print(
-                    "Use: /esquecer <n>"
-                )
-
+            if len(parts) != 2 or not parts[1].isdigit():
+                print("Use: /esquecer <n>")
                 continue
 
             history = forget_message(
@@ -327,42 +283,91 @@ def main():
 
             continue
 
+        # ==============================
+        # MENSAGEM DO USUÁRIO
+        # ==============================
+
         history.append({
             "role": "user",
             "content": user_input
         })
 
+        stream = None
+        answer_parts = []
+
+        start_time = time.perf_counter()
+        first_token_time = None
+
+        print("JARVIS: ", end="", flush=True)
+
         try:
-
-            response = (
-                client.chat.completions.create(
-                    model=model,
-                    messages=history
-                )
+            stream = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Você é o JARVIS, um assistente virtual. "
+                            "Responda sempre em português do Brasil. "
+                            "Use linguagem natural, clara e objetiva. "
+                            "Não use Markdown de negrito. "
+                            "Nunca use dois asteriscos seguidos (**). "
+                            "Prefira texto simples e natural."
+                        )
+                    },
+                    *history
+                ],
+                stream=True,
+                max_tokens=MAX_TOKENS,
+                extra_body={
+                    "thinking": {
+                        "type": "disabled"
+                    }
+                }
             )
 
-            answer = (
-                response
-                .choices[0]
-                .message
-                .content
-                .strip()
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+
+                delta = chunk.choices[0].delta
+                content = delta.content
+
+                if content:
+                    if first_token_time is None:
+                        first_token_time = time.perf_counter()
+
+                    answer_parts.append(content)
+
+                    print(content, end="", flush=True)
+
+            answer = clean_answer("".join(answer_parts))
+
+            elapsed = time.perf_counter() - start_time
+
+            print()
+            print(
+                f"⚡ Primeira resposta: "
+                f"{(first_token_time - start_time):.2f}s"
+                if first_token_time is not None
+                else "⚠️ Nenhum token recebido."
             )
-
-        except Exception as error:
-
-            history.pop()
 
             print(
-                f"\n❌ Erro ao consultar "
-                f"a API: {error}\n"
+                f"⏱️ Tempo total: {elapsed:.2f}s"
             )
 
-            continue
+            print()
 
-        print(
-            f"JARVIS: {answer}\n"
-        )
+        except Exception as error:
+            history.pop()
+
+            print()
+            print("❌ Erro ao consultar a API:")
+            print(error)
+            print()
+
+            continue
 
         history.append({
             "role": "assistant",
