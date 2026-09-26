@@ -1,6 +1,5 @@
 import json
 import os
-import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -18,6 +17,7 @@ MAX_TOKENS = int(
 
 AVAILABLE_MODELS = {
     "flash": "deepseek-flash",
+    "pro": "deepseek-v4-pro",
 }
 
 
@@ -47,7 +47,7 @@ def save_history(history):
 
 def show_history(history):
     if not history:
-        print("\n📭 Histórico vazio.\n")
+        print("\n Histórico vazio.\n")
         return
 
     print("\n===== HISTÓRICO =====")
@@ -76,7 +76,7 @@ def forget_message(history, number):
     ]
 
     if number < 1 or number > len(user_positions):
-        print("❌ Número de mensagem inválido.")
+        print(" Número de mensagem inválido.")
         return history
 
     position = user_positions[number - 1]
@@ -91,7 +91,7 @@ def forget_message(history, number):
 
     save_history(history)
 
-    print(f"🗑️ Mensagem {number} esquecida.")
+    print(f" Mensagem {number} esquecida.")
 
     return history
 
@@ -152,11 +152,8 @@ def main():
     api_key = os.getenv("DEEPSEEK_API_KEY")
 
     if not api_key or api_key == "SUA_CHAVE_AQUI":
-        print("❌ API Key do DeepSeek não configurada.")
-        print()
-        print("Abra o arquivo .env e coloque:")
-        print("DEEPSEEK_API_KEY=SUA_CHAVE_AQUI")
-        print()
+        print(" API Key invalida.")
+        print("Abra o arquivo .env e coloque sua chave onde está escrito 'SUA_CHAVE_AQUI'")
         return
 
     client = OpenAI(
@@ -173,10 +170,10 @@ def main():
     if model not in AVAILABLE_MODELS.values():
         model = AVAILABLE_MODELS["flash"]
 
-    print("🤖 JARVIS iniciado!")
-    print(f"🧠 Modelo: {model}")
-    print("🌐 API: DeepSeek")
-    print("⚡ Modo rápido: thinking desativado + streaming")
+    print(" JARVIS iniciado!")
+    print(f" Modelo: {model}")
+    print(" API: DeepSeek")
+    print(" Modo rápido: thinking desativado + streaming")
     print()
     print("Digite /ajuda para ver os comandos.")
     print("Digite /sair para sair.")
@@ -187,7 +184,7 @@ def main():
             user_input = input("Você: ").strip()
 
         except (KeyboardInterrupt, EOFError):
-            print("\n👋 JARVIS encerrado.")
+            print("\n JARVIS encerrado.")
             break
 
         if not user_input:
@@ -200,7 +197,7 @@ def main():
         # ==============================
 
         if command == "/sair":
-            print("👋 JARVIS encerrado.")
+            print(" JARVIS encerrado.")
             break
 
         # ==============================
@@ -226,7 +223,7 @@ def main():
         if command == "/limpar":
             history.clear()
             save_history(history)
-            print("🧹 Histórico apagado.")
+            print(" Histórico apagado.")
             continue
 
         # ==============================
@@ -242,7 +239,7 @@ def main():
         # ==============================
 
         if command == "/modelo":
-            print(f"🧠 Modelo atual: {model}")
+            print(f" Modelo atual: {model}")
             continue
 
         # ==============================
@@ -254,14 +251,14 @@ def main():
 
             if chosen in AVAILABLE_MODELS:
                 model = AVAILABLE_MODELS[chosen]
-                print(f"🧠 Modelo alterado para: {model}")
+                print(f" Modelo alterado para: {model}")
 
             elif chosen in AVAILABLE_MODELS.values():
                 model = chosen
-                print(f"🧠 Modelo alterado para: {model}")
+                print(f" Modelo alterado para: {model}")
 
             else:
-                print("❌ Modelo inválido. Use /modelos.")
+                print(" Modelo inválido. Use /modelos.")
 
             continue
 
@@ -292,12 +289,6 @@ def main():
             "content": user_input
         })
 
-        stream = None
-        answer_parts = []
-
-        start_time = time.perf_counter()
-        first_token_time = None
-
         print("JARVIS: ", end="", flush=True)
 
         try:
@@ -326,44 +317,30 @@ def main():
                 }
             )
 
+            answer_parts = []
+
             for chunk in stream:
                 if not chunk.choices:
                     continue
 
-                delta = chunk.choices[0].delta
-                content = delta.content
+                content = chunk.choices[0].delta.content
 
                 if content:
-                    if first_token_time is None:
-                        first_token_time = time.perf_counter()
-
                     answer_parts.append(content)
-
                     print(content, end="", flush=True)
 
-            answer = clean_answer("".join(answer_parts))
-
-            elapsed = time.perf_counter() - start_time
+            answer = clean_answer(
+                "".join(answer_parts)
+            )
 
             print()
-            print(
-                f"⚡ Primeira resposta: "
-                f"{(first_token_time - start_time):.2f}s"
-                if first_token_time is not None
-                else "⚠️ Nenhum token recebido."
-            )
-
-            print(
-                f"⏱️ Tempo total: {elapsed:.2f}s"
-            )
-
             print()
 
         except Exception as error:
             history.pop()
 
             print()
-            print("❌ Erro ao consultar a API:")
+            print(" Erro ao consultar a API:")
             print(error)
             print()
 
